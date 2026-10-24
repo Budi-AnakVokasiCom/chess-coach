@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Chess, DEFAULT_POSITION, type Square } from "chess.js";
+import { DEFAULT_POSITION, type Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import {
   gameFromMoves,
@@ -184,18 +184,20 @@ function App() {
   function handlePieceDrop(sourceSquare: string, targetSquare: string): boolean {
     if (!isSquare(sourceSquare) || !isSquare(targetSquare) || !canPlay) return false;
 
-    const piece = latestGame.get(sourceSquare);
+    const from = sourceSquare;
+    const to = targetSquare;
+    const piece = latestGame.get(from);
     const isPromotion =
       piece?.type === "p" &&
-      ((piece.color === "w" && targetSquare[1] === "8") ||
-        (piece.color === "b" && targetSquare[1] === "1"));
+      ((piece.color === "w" && to[1] === "8") ||
+        (piece.color === "b" && to[1] === "1"));
 
     if (isPromotion) {
-      setPendingPromotion({ from: sourceSquare, to: targetSquare });
+      setPendingPromotion({ from, to });
       return false;
     }
 
-    return makeMove(sourceSquare, targetSquare);
+    return makeMove(from, to);
   }
 
   function navigateTo(ply: number) {
@@ -326,8 +328,10 @@ function App() {
                   boardStyle: { borderRadius: "4px", overflow: "hidden" },
                   darkSquareStyle: { backgroundColor: "#769656" },
                   lightSquareStyle: { backgroundColor: "#eeeed2" },
-                  onPieceDrop: ({ sourceSquare, targetSquare }) =>
-                    handlePieceDrop(sourceSquare, targetSquare),
+                  onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                    if (!sourceSquare || !targetSquare) return false;
+                    return handlePieceDrop(sourceSquare, targetSquare);
+                  },
                 }}
               />
             </div>

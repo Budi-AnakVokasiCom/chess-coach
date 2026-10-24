@@ -1,6 +1,6 @@
 import { Chess, type Move, type Square } from "chess.js";
 
-export type MoveInput = Pick<Move, "from" | "to" | "promotion">;
+export type MoveInput = Move;
 
 export function gameFromMoves(initialFen: string, moves: MoveInput[]): Chess {
   const game = new Chess(initialFen);
