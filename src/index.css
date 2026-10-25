@@ -731,16 +731,11 @@ h2 {
   height: 25px;
 }
 
-.engine-button {
-  margin-top: 8px;
-}
-
-.engine-button:disabled {
-  transform: none;
-  border-color: #3a4533;
-  background: #343e2f;
-  color: #a6b598;
-  cursor: not-allowed;
+.analysis-auto {
+  margin: 12px 0 0;
+  color: #aab2ab;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .engine-error {
@@ -794,6 +789,13 @@ h2 {
   color: #c3dd9e;
   font-family: "Cascadia Code", Consolas, monospace;
   font-size: 10px;
+}
+
+.variation-heading {
+  display: block;
+  margin-top: 12px;
+  color: #aab2ab;
+  font-size: 9px;
 }
 
 .score-caption {

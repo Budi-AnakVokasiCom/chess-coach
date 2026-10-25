@@ -55,6 +55,7 @@ function App() {
     to: Square;
   } | null>(null);
   const engineRef = useRef<StockfishClient | null>(null);
+  const isAnalyzingRef = useRef(false);
 
   const visibleGame = useMemo(
     () => gameFromMoves(initialFen, moves.slice(0, currentPly)),
@@ -91,11 +92,13 @@ function App() {
           case "bestmove":
             setBestMove(event.move);
             setIsAnalyzing(false);
+            isAnalyzingRef.current = false;
             break;
           case "error":
             setEngineStatus("error");
             setEngineError(event.message);
             setIsAnalyzing(false);
+            isAnalyzingRef.current = false;
             break;
         }
       });
@@ -119,12 +122,40 @@ function App() {
 
   const visibleFen = visibleGame.fen();
   useEffect(() => {
-    if (!isAnalyzing) return;
-    engineRef.current?.stop();
-    setIsAnalyzing(false);
     setAnalysisLines([]);
     setBestMove("");
-  }, [visibleFen]);
+
+    if (isAnalyzingRef.current) {
+      engineRef.current?.stop();
+      isAnalyzingRef.current = false;
+    }
+
+    if (engineStatus !== "ready") {
+      setIsAnalyzing(false);
+      return;
+    }
+
+    setEngineError("");
+    if (!engineRef.current) {
+      setEngineError("Worker Stockfish belum tersedia. Coba muat ulang engine.");
+      setEngineStatus("error");
+      return;
+    }
+
+    setIsAnalyzing(true);
+    isAnalyzingRef.current = true;
+    try {
+      engineRef.current.analyze(visibleFen, { skillLevel, depth, moveTime, multiPv });
+    } catch (analysisError) {
+      setIsAnalyzing(false);
+      isAnalyzingRef.current = false;
+      setEngineError(
+        analysisError instanceof Error
+          ? analysisError.message
+          : "Analisis engine gagal dimulai.",
+      );
+    }
+  }, [visibleFen, engineStatus, skillLevel, depth, moveTime, multiPv]);
 
   function installPosition(nextInitialFen: string, nextMoves: MoveInput[]) {
     const nextPositions = positionsFromMoves(nextInitialFen, nextMoves);
@@ -226,29 +257,6 @@ function App() {
     if (setting === "multiPv") setMultiPv(value);
   }
 
-  function analyzePosition() {
-    if (!engineRef.current) {
-      setEngineError("Worker Stockfish belum tersedia. Coba muat ulang engine.");
-      setEngineStatus("error");
-      return;
-    }
-
-    setAnalysisLines([]);
-    setBestMove("");
-    setEngineError("");
-    setIsAnalyzing(true);
-    try {
-      engineRef.current.analyze(visibleFen, { skillLevel, depth, moveTime, multiPv });
-    } catch (analysisError) {
-      setIsAnalyzing(false);
-      setEngineError(
-        analysisError instanceof Error
-          ? analysisError.message
-          : "Analisis engine gagal dimulai.",
-      );
-    }
-  }
-
   function getGameStatus(): string {
     if (visibleGame.isCheckmate()) {
       return `Skakmat — ${visibleGame.turn() === "w" ? "Hitam" : "Putih"} menang`;
@@ -268,6 +276,12 @@ function App() {
     const blackMove = moves[index * 2 + 1];
     return { moveNumber: index + 1, whiteMove, blackMove, firstPly: index * 2 + 1 };
   });
+  const recommendedMove =
+    analysisLines.find((line) => line.multiPv === 1)?.pv[0] ?? bestMove;
+  const recommendedSan = recommendedMove
+    ? uciLineToSan(visibleFen, [recommendedMove])[0] ?? recommendedMove
+    : "";
+  const recommendedRoute = recommendedMove.match(/^([a-h][1-8])([a-h][1-8])/);
   const topColor = orientation === "white" ? "Hitam" : "Putih";
   const bottomColor = orientation === "white" ? "Putih" : "Hitam";
   const topPiece = orientation === "white" ? "♟" : "♙";
@@ -564,15 +578,13 @@ function App() {
               </div>
             </div>
 
-            <button
-              className="primary-button engine-button"
-              type="button"
-              onClick={analyzePosition}
-              disabled={engineStatus !== "ready" || isAnalyzing}
-            >
-              {isAnalyzing ? "Menganalisis posisi..." : "Analisis posisi ini"}
-              {!isAnalyzing && <span aria-hidden="true">→</span>}
-            </button>
+            <p className="analysis-auto" role="status">
+              {engineStatus === "ready"
+                ? isAnalyzing
+                  ? "Menganalisis posisi secara otomatis..."
+                  : "Analisis otomatis aktif untuk setiap posisi."
+                : "Analisis otomatis dimulai saat engine siap."}
+            </p>
 
             {engineStatus === "error" && (
               <div className="engine-error" role="alert">
@@ -581,16 +593,21 @@ function App() {
               </div>
             )}
 
-            {(analysisLines.length > 0 || bestMove) && (
+            {(analysisLines.length > 0 || bestMove || isAnalyzing) && (
               <div className="engine-results" aria-live="polite">
                 <div className="result-heading">
-                  <strong>Variasi engine</strong>
-                  {bestMove && (
+                  <strong>Panduan langkah terbaik</strong>
+                  {recommendedMove && (
                     <span>
-                      Terbaik: {uciLineToSan(visibleFen, [bestMove])[0] ?? bestMove}
+                      {recommendedSan}
+                      {recommendedRoute && ` (${recommendedRoute[1]} → ${recommendedRoute[2]})`}
                     </span>
                   )}
                 </div>
+                {isAnalyzing && !recommendedMove && (
+                  <p className="score-caption">Mencari langkah terbaik untuk posisi ini...</p>
+                )}
+                <strong className="variation-heading">Variasi engine</strong>
                 <p className="score-caption">Evaluasi dari sisi pemain yang sedang giliran.</p>
                 {analysisLines.map((line) => {
                   const score =
